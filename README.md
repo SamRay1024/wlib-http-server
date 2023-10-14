@@ -5,11 +5,7 @@ Kit léger pour gérer la couche serveur HTTP : la requête courante et sa répo
 ## Installation
 
 ```shell
-// Production
-composer require --no-dev wlib/http-server
-
-// Développement
-composer require --dev wlib/http-server
+composer require wlib/http-server
 ```
 
 ## Classes disponibles
