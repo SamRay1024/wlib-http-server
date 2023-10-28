@@ -41,7 +41,7 @@ namespace wlib\Http\Server;
  *
  * @author Cédric Ducarre
  */
-class Exception extends \RuntimeException
+class HttpException extends \RuntimeException
 {
 	/**
 	 * HTTP status code.
