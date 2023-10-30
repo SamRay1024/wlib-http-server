@@ -313,7 +313,13 @@ class Response
 	 */
 	public function setHeader($sName, $sValue, $bOverwrite = true)
 	{
-		$sName		= $this->request->normalizeHeaderName($sName);
+		$sName		= ucwords(
+			strtr($sName,
+				'_ABCDEFGHIJKLMNOPQRSTUVWXYZ',
+				'-abcdefghijklmnopqrstuvwxyz'
+			),
+			'-'
+		);
 		$bExists	= isset($this->aHeaders[$sName]);
 
 		if (!$bExists || ($bExists && $bOverwrite === true))
@@ -451,6 +457,15 @@ class Response
 	}
 
 	/**
+	 * Send response body to output buffer.
+	 */
+	public function sendBody()
+	{
+		rewind($this->hBody);
+		fpassthru($this->hBody);
+	}
+
+	/**
 	 * Send the response, headers and body (except for "HEAD" requests).
 	 */
 	public function send()
@@ -459,8 +474,7 @@ class Response
 
 		if ($this->request->getMethod() !== 'HEAD')
 		{
-			rewind($this->hBody);
-			fpassthru($this->hBody);
+			$this->sendBody();
 		}
 	}
 
