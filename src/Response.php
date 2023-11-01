@@ -277,9 +277,12 @@ class Response
 		{
 			$this->setHeader('Last-Modified', gmdate('D, d M Y H:i:s T', $iTime));
 
+			$sIfModifiedSince = $this->request->getHeader('IF_MODIFIED_SINCE');
+
 			if (
 				$this->request->isGet()
-				&& $iTime === strtotime($this->request->getHeader('IF_MODIFIED_SINCE'))
+				&& $sIfModifiedSince
+				&& $iTime === strtotime($sIfModifiedSince)
 			)
 				$this->setStatus(self::HTTP_NOT_MODIFIED)->send();
 		}
@@ -313,19 +316,31 @@ class Response
 	 */
 	public function setHeader($sName, $sValue, $bOverwrite = true)
 	{
-		$sName		= ucwords(
-			strtr($sName,
-				'_ABCDEFGHIJKLMNOPQRSTUVWXYZ',
-				'-abcdefghijklmnopqrstuvwxyz'
-			),
-			'-'
-		);
+		$sName		= $this->formatHeaderName($sName);
 		$bExists	= isset($this->aHeaders[$sName]);
 
 		if (!$bExists || ($bExists && $bOverwrite === true))
 			$this->aHeaders[$sName] = $sValue;
 
 		return $this;
+	}
+
+	/**
+	 * Format header name.
+	 *
+	 * @param string $sName Header name.
+	 * @return string
+	 */
+	public function formatHeaderName(string $sName): string
+	{
+		return ucwords(
+			strtr(
+				$sName,
+				'_ABCDEFGHIJKLMNOPQRSTUVWXYZ',
+				'-abcdefghijklmnopqrstuvwxyz'
+			),
+			'-'
+		);
 	}
 
 	/**
@@ -341,6 +356,29 @@ class Response
 			$this->setHeader($name, $value, $bOverwrite);
 
 		return $this;
+	}
+
+	/**
+	 * Get an HTTP header value.
+	 * 
+	 * @param string $sName Header name.
+	 * @param string $sDefault Default value if header not set.
+	 * @return string|null
+	 */
+	public function getHeader($sName, $sDefault = null): ?string
+	{
+		return $this->aHeaders[$this->formatHeaderName($sName)] ?? $sDefault;
+	}
+	
+	/**
+	 * Checks if given header name exists.
+	 *
+	 * @param string $sName Header name.
+	 * @return bool
+	 */
+	public function hasHeader($sName): bool
+	{
+		return array_key_exists($this->formatHeaderName($sName), $this->aHeaders);
 	}
 
 	/**
@@ -392,7 +430,7 @@ class Response
 	 * String format :
 	 * 
 	 * ```
-	 * <Header-Name>: <header value>\n
+	 * <Header-Name>: <header value>\r\n
 	 * ...
 	 * ```
 	 *
@@ -403,7 +441,7 @@ class Response
 		$sHeaders = '';
 
 		foreach ($this->aHeaders as $sName => $sValue)
-			$sHeaders .= $sName .': '. $sValue . "\n";
+			$sHeaders .= $sName .': '. $sValue ."r\n";
 
 		return $sHeaders;
 	}
@@ -439,7 +477,7 @@ class Response
 	{
 		if (!headers_sent())
 		{
-			$this->setHeader('Content-Length', $this->getLength(), false);
+			$this->preheat();
 
 			header((strpos(PHP_SAPI, 'cgi') === 0
 				? 'Status: ' . $this->iStatus . ' ' . $this->getStatusMessage($this->iStatus)
@@ -457,6 +495,26 @@ class Response
 	}
 
 	/**
+	 * Prepare response before sending it to the client.
+	 */
+	public function preheat()
+	{
+		if (!$this->hasHeader('Content-Type'))
+		{
+			$aAccept = explode(',', $this->request->getHeader('Accept'));
+			$this->setHeader('Content-Type', $aAccept[0] ?? 'text/html');
+		}
+
+		if ($this->request->getMethod() == 'HEAD')
+		{
+			$iLength = $this->getLength();
+			$this->initBody();
+			$this->setHeader('Content-Length', $iLength);
+		}
+		else $this->setHeader('Content-Length', $this->getLength(), false);
+	}
+
+	/**
 	 * Send response body to output buffer.
 	 */
 	public function sendBody()
@@ -471,11 +529,7 @@ class Response
 	public function send()
 	{
 		$this->sendHeaders();
-
-		if ($this->request->getMethod() !== 'HEAD')
-		{
-			$this->sendBody();
-		}
+		$this->sendBody();
 	}
 
 	/**
