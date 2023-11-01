@@ -511,7 +511,6 @@ class Response
 			$this->initBody();
 			$this->setHeader('Content-Length', $iLength);
 		}
-		else $this->setHeader('Content-Length', $this->getLength(), false);
 	}
 
 	/**
