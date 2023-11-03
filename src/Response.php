@@ -369,7 +369,7 @@ class Response
 	{
 		return $this->aHeaders[$this->formatHeaderName($sName)] ?? $sDefault;
 	}
-	
+
 	/**
 	 * Checks if given header name exists.
 	 *
@@ -408,7 +408,7 @@ class Response
 	 */
 	public function getStatusString()
 	{
-		return 'HTTP/1.1 '. $this->iStatus .' '. $this->getStatusMessage($this->iStatus);
+		return 'HTTP/1.1 '. $this->iStatus .' '. self::getStatusMessage($this->iStatus);
 	}
 
 	/**
@@ -419,7 +419,7 @@ class Response
 	 * @param integer $iCode HTTP status code.
 	 * @return string Corresponding status message.
 	 */
-	private function getStatusMessage($iCode)
+	public static function getStatusMessage($iCode)
 	{
 		return arrayValue(self::$aStatusMessages, $iCode, self::$aStatusMessages[500]);
 	}
@@ -480,8 +480,8 @@ class Response
 			$this->preheat();
 
 			header((strpos(PHP_SAPI, 'cgi') === 0
-				? 'Status: ' . $this->iStatus . ' ' . $this->getStatusMessage($this->iStatus)
-				: 'HTTP/1.1 ' . $this->iStatus . ' ' . $this->getStatusMessage($this->iStatus)
+				? 'Status: '. $this->iStatus .' '. self::getStatusMessage($this->iStatus)
+				: 'HTTP/1.1 '. $this->iStatus .' '. self::getStatusMessage($this->iStatus)
 			));
 
 			foreach ($this->aHeaders as $name => $value)
