@@ -69,7 +69,7 @@ class Request
 	 * Current HTTP method, possibly overloaded.
 	 * @var string
 	 */
-	private ?string $sMethod = null;
+	private string $sMethod = '';
 
 	/**
 	 * GET parameters (also named "param").
@@ -324,59 +324,59 @@ class Request
 	/**
 	 * Get content type.
 	 * 
-	 * @return string|null
+	 * @return string
 	 */
-	public function getContentType(): ?string
+	public function getContentType(): string
 	{
-		return $this->getHeader('Content-Type');
+		return $this->getHeader('Content-Type', '');
 	}
 
 	/**
 	 * Get content charset.
 	 *
-	 * @return string|null
+	 * @return string
 	 */
-	public function getContentCharset(): ?string
+	public function getContentCharset(): string
 	{
 		$sContentType = $this->getHeader('Content-Type');
 
 		if (!$sContentType)
-			return null;
+			return '';
 
 		$aMatches = array();
 
 		return (preg_match('#charset\s*=([^;]+)#i', $sContentType, $aMatches) !== false
 			? $aMatches[1]
-			: null
+			: ''
 		);
 	}
 
 	/**
 	 * Get accept encoding.
 	 *
-	 * @return string|null
+	 * @return string
 	 */
-	public function getAcceptEncoding(): ?string
+	public function getAcceptEncoding(): string
 	{
-		return $this->getHeader('Accept-Encoding');
+		return $this->getHeader('Accept-Encoding', '');
 	}
 
 	/**
 	 * Get referer.
 	 *
-	 * @return string|null
+	 * @return string
 	 */
-	public function getReferer(): ?string
+	public function getReferer(): string
 	{
-		return $this->getHeader('Referer');
+		return $this->getHeader('Referer', '');
 	}
 
 	/**
 	 * Get client IP address.
 	 * 
-	 * @return string|null
+	 * @return string
 	 */
-	public function getIP(): ?string
+	public function getIP(): string
 	{
 		$aKeys = [
 			'HTTP_CLIENT_IP',
@@ -387,7 +387,7 @@ class Request
 			'HTTP_FORWARDED',
 			'REMOTE_ADDR'
 		];
-		
+
 		foreach ($aKeys as $sKey)
 		{
 			$sIP = $this->getServer(
@@ -398,12 +398,12 @@ class Request
 			);
 
 			if ($sIP)
-			return $sIP;
+				return $sIP;
 		}
-		
-		return null;
+
+		return '';
 	}
-	
+
 	/**
 	 * Get IP port.
 	 * 
@@ -424,9 +424,9 @@ class Request
 	 *
 	 * $_POST has priority if both values are sets.
 	 *
-	 * @return string|null
+	 * @return string
 	 */
-	public function getMethod(): ?string
+	public function getMethod(): string
 	{
 		if ($this->sMethod)
 			return $this->sMethod;
@@ -435,7 +435,9 @@ class Request
 
 		if (isset($_POST['_method']))
 			$this->sMethod = strtoupper(filter_input(
-				INPUT_POST, '_method', FILTER_SANITIZE_FULL_SPECIAL_CHARS
+				INPUT_POST,
+				'_method',
+				FILTER_SANITIZE_FULL_SPECIAL_CHARS
 			));
 		elseif ($this->getHeader('X-Http-Method-Override'))
 			$this->sMethod = strtoupper($this->getHeader('X-Http-Method-Override'));
@@ -458,31 +460,31 @@ class Request
 	/**
 	 * Get serveur PATH_INFO value.
 	 * 
-	 * @return string|null
+	 * @return string
 	 */
-	public function getPathInfo(): ?string
+	public function getPathInfo(): string
 	{
-		return $this->getServer('PATH_INFO');
+		return $this->getServer('PATH_INFO', '');
 	}
 
 	/**
 	 * Get server QUERY_STRING value.
 	 * 
-	 * @return string|null
+	 * @return string
 	 */
-	public function getQueryString(): ?string
+	public function getQueryString(): string
 	{
-		return $this->getServer('QUERY_STRING');
+		return $this->getServer('QUERY_STRING', '');
 	}
 
 	/**
 	 * Get server REQUEST_URI value.
 	 * 
-	 * @return string|null
+	 * @return string
 	 */
-	public function getRequestUri(): ?string
+	public function getRequestUri(): string
 	{
-		return $this->getServer('REQUEST_URI');
+		return $this->getServer('REQUEST_URI', '');
 	}
 
 	/**
@@ -692,7 +694,8 @@ class Request
 		{
 			$array = json_decode($this->getRawInput(), true);
 
-			if (!is_null($array)) {
+			if (!is_null($array))
+			{
 				$this->aPost = $this->stripSlashesIfNeeded($array);
 				return;
 			}
