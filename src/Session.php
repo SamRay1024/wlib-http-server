@@ -47,6 +47,16 @@ use RuntimeException;
  */
 class Session
 {
+	const KEY_TYPE		= '_type';
+	const KEY_EXPIRE	= '_expire';
+	const KEY_TOKENS	= '_tokens';
+	const KEY_MESSAGES	= '_messages';
+
+	const FLASH_INFO	= 'info';
+	const FLASH_SUCCESS	= 'success';
+	const FLASH_WARNING	= 'warning';
+	const FLASH_ERROR	= 'error';
+
 	/**
 	 * Http server request.
 	 * @var \wlib\Http\Server\Request
@@ -111,13 +121,14 @@ class Session
 
 		$iNow = time();
 
-		if (isset($_SESSION['.expire']) && $_SESSION['.expire'] < $iNow)
+		if (isset($_SESSION[self::KEY_EXPIRE]) && $_SESSION[self::KEY_EXPIRE] < $iNow)
 		{
 			$_SESSION = [];
 			$this->regenerateId();
 		}
-		
-		$_SESSION['.expire'] = $iNow + $this->iSessionTimeout;
+
+		$_SESSION[self::KEY_TYPE] = 'normal';
+		$_SESSION[self::KEY_EXPIRE] = $iNow + $this->iSessionTimeout;
 
 		register_shutdown_function([$this, 'close']);
 	}
@@ -159,7 +170,6 @@ class Session
 	{
 		if (session_status() === PHP_SESSION_ACTIVE)
 		{
-			unset($_SESSION);
 			session_write_close();
 			$this->bStarted = false;
 		}
@@ -215,9 +225,24 @@ class Session
 
 		$this->start();
 
-		$_SESSION['.type'] = 'cookie';
+		$_SESSION[self::KEY_TYPE] = 'cookie';
 
 		$this->regenerateId();
+	}
+
+	/**
+	 * Check if a key exists in session.
+	 * 
+	 * @see session() from wlib/utils
+	 * @throws LogicException if session is not started.
+	 * @param string|int $mKey Key to check.
+	 * @return bool
+	 */
+	public function has(string|int $mKey): bool
+	{
+		$this->haltIfNotStarted();
+
+		return isArrayKey($_SESSION, $mKey);
 	}
 
 	/**
@@ -225,11 +250,11 @@ class Session
 	 * 
 	 * @see session() from wlib/utils
 	 * @throws LogicException if session is already started.
-	 * @param string|array $mKey Nom de la variable.
-	 * @param mixed $mDefault Valeur par défaut si `$mKey` n'existe pas.
+	 * @param string|int $mKey Key to access.
+	 * @param mixed $mDefault Default value if `$mKey` does not exists.
 	 * @return mixed
 	 */
-	public function get(string|array $mKey, mixed $mDefault = null): mixed
+	public function get(string|int $mKey, mixed $mDefault = null): mixed
 	{
 		$this->haltIfNotStarted();
 
@@ -286,73 +311,22 @@ class Session
 	}
 
 	/**
-	 * Create a token to secure session.
+	 * Write in session.
 	 *
-	 * @param string $uid Optional additional string.for the token.
-	 * @return string Uncrypted token.
+	 * @param string|int $mVarName Variable name.
+	 * @param mixed $mValue Value to save.
 	 */
-	private function createToken(string $uid = null): string
-	{
-		return 
-			$this->request->getServer('REMOTE_ADDR')
-			. $this->request->getServer('HTTP_USER_AGENT')
-			. $uid;
-	}
-
-	/**
-	 * Définir le jeton de session sécurisée.
-	 *
-	 * @param string $sPrivateKey Private key to encrypt the token.
-	 * @param string $uid Chaîne supplémentaire optionnelle à placer dans le jeton.
-	 */
-	public function setToken(string $sPrivateKey, string $uid = null)
+	public function set(string|int $mVarName, mixed $mValue)
 	{
 		$this->haltIfNotStarted();
 
-		$_SESSION['.token'] = encrypt($this->createToken($uid), $sPrivateKey);
+		session([$mVarName => $mValue]);
 	}
 
 	/**
-	 * Vérifier la validité du jeton courant.
+	 * Set the session save path.
 	 *
-	 * Si le jeton n'est pas valide, la session est détruite.
-	 *
-	 * @param string $uid Chaîne ou identifiant optionnel.
-	 * @return boolean False si le jeton n'est pas bon.
-	 */
-	public function checkToken(string $sPrivateKey, string $uid = null): bool
-	{
-		$this->haltIfNotStarted();
-
-		if (!isset($_SESSION['.token']))
-			return false;
-
-		if (decrypt($_SESSION['.token'], $sPrivateKey) != $this->createToken($uid))
-		{
-			$this->destroy();
-			return false;
-		}
-
-		return true;
-	}
-
-	/**
-	 * Ecrire une variable en session.
-	 *
-	 * @param string $sVarName Nom de la variable.
-	 * @param mixed $mValue Valeur à enregistrer.
-	 */
-	public function set(string $sVarName, mixed $mValue)
-	{
-		$this->haltIfNotStarted();
-
-		session([$sVarName => $mValue]);
-	}
-
-	/**
-	 * Définir le dossier de sauvegarde des sessions.
-	 *
-	 * @param string $sPath Adresse du dossier de sauvegarde.
+	 * @param string $sPath Path of save folder.
 	 */
 	public function setPath(string $sPath)
 	{
@@ -368,6 +342,136 @@ class Session
 			throw new RuntimeException('Path "'. $sPath .'" is not writeable.');
 
 		session_save_path($sPath);
+	}
+
+	/**
+	 * Get a random token for CSRF protection.
+	 * 
+	 * Token is generated on first call and returned on subsequent calls.
+	 * 
+	 * @param string $sName A string to uniquely identify the token.
+	 * @return string
+	 */
+	public function getToken(string $sName): string
+	{
+		$this->haltIfNotStarted();
+
+		if (!isset($_SESSION[self::KEY_TOKENS]))
+			$_SESSION[self::KEY_TOKENS] = [];
+
+		if (!isset($_SESSION[self::KEY_TOKENS][$sName]))
+			$_SESSION[self::KEY_TOKENS][$sName] = $this->createToken();
+
+		return $_SESSION[self::KEY_TOKENS][$sName];
+	}
+
+	/**
+	 * Remove a token.
+	 * 
+	 * @param string $sTokenId Token ID to remove.
+	 * @return string|null Token value if it exits.
+	 */
+	public function removeToken(string $sName): ?string
+	{
+		$this->haltIfNotStarted();
+
+		$sTokenKey = self::KEY_TOKENS .'.'. $sName;
+		$sTokenValue = session($sTokenKey);
+		unsession($sTokenKey);
+
+		return $sTokenValue;
+	}
+
+	/**
+	 * Generate a new value for a token.
+	 * 
+	 * @param string $sName Token identifier.
+	 * @return string
+	 */
+	public function refreshToken(string $sName): string
+	{
+		$this->haltIfNotStarted();
+
+		$_SESSION[self::KEY_TOKENS][$sName] = $this->createToken();
+
+		return $_SESSION[self::KEY_TOKENS][$sName];
+	}
+
+	/**
+	 * Check if a given value equals to the one generated for the given token identifier.
+	 * 
+	 * @param string $sName Token identifier.
+	 * @param string $sTokenValue Value to check.
+	 * @return bool
+	 */
+	public function isValidToken(string $sName, string $sTokenValue): bool
+	{
+		$this->haltIfNotStarted();
+
+		$sSessionValue = session(self::KEY_TOKENS .'.'. $sName);
+
+		if (is_null($sSessionValue))
+			return false;
+
+		return hash_equals($sSessionValue, $sTokenValue);
+	}
+
+	/**
+	 * Get or set a flash message.
+	 * 
+	 * - $mMessage not empty = create the message
+	 * - $mMessage empty = get and delete the message
+	 * 
+	 * A flash message is an array of two elements : 'message' and 'level'.
+	 * 
+	 * It's up to you to use the 'level' element to display the message.
+	 * 
+	 * @param string $sName Message name.
+	 * @param string|array $mMessage Message content or array of message content + data.
+	 * @param string $sLevel Message level.
+	 * @return array|bool
+	 */
+	public function flash(string $sName, string|array $mMessage = '', string $sLevel = self::FLASH_INFO): array|bool
+	{
+		$this->haltIfNotStarted();
+
+		if ($sName === '')
+			throw new RuntimeException('Please provide a name to your flash message.');
+
+		$sFlashKey = self::KEY_MESSAGES .'.'. $sName;
+
+		if ((is_string($mMessage) && $mMessage !== '') ||
+			(is_array($mMessage) && count($mMessage))
+		) {
+			unsession($sFlashKey);
+
+			if (is_string($mMessage))
+				$mMessage = [$mMessage];
+
+			session([$sFlashKey => [
+				'level'	=> $sLevel,
+				'message' => array_shift($mMessage),
+				'data' => $mMessage[0]
+			]]);
+
+			return true;
+		}
+		else
+		{
+			$mFlash = session($sFlashKey, false);
+			unsession($sFlashKey);
+			return $mFlash;
+		}
+	}
+
+	/**
+	 * Create a random token (for CSRF protection).
+	 * 
+	 * @return string
+	 */
+	private function createToken(): string
+	{
+		return bin2hex(random_bytes(32));
 	}
 
 	/**
