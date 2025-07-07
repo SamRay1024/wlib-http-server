@@ -109,9 +109,9 @@ class Request
 	 * 
 	 * @param string $sKeyName Header name ('Referer', 'Content-Type', ...).
 	 * @param string $sDefault Default value.
-	 * @return string|null
+	 * @return string
 	 */
-	public function getHeader(string $sKeyName, string $sDefault = null): ?string
+	public function getHeader(string $sKeyName, string $sDefault = ''): ?string
 	{
 		if (isset($this->aHeaders[$sKeyName]))
 			return $this->aHeaders[$sKeyName];
@@ -201,7 +201,7 @@ class Request
 	 */
 	public function getServer(
 		string $sKey,
-		string $sDefault = null,
+		string $sDefault = '',
 		int $iFilter = FILTER_SANITIZE_FULL_SPECIAL_CHARS,
 		mixed $mOptions = null
 	): ?string
@@ -246,7 +246,7 @@ class Request
 
 			return $sHost;
 		}
-		else $this->getServer('SERVER_NAME');
+		else return $this->getServer('SERVER_NAME');
 	}
 
 	/**
@@ -392,7 +392,7 @@ class Request
 		{
 			$sIP = $this->getServer(
 				$sKey,
-				null,
+				'',
 				FILTER_VALIDATE_IP,
 				['flags' => [FILTER_FLAG_NO_PRIV_RANGE, FILTER_FLAG_NO_RES_RANGE]]
 			);
@@ -678,9 +678,11 @@ class Request
 	{
 		$array = [];
 
+		$sQueryString = str_ireplace('&amp;', '&', urldecode($this->getQueryString()));
+
 		function_exists('mb_parse_str')
-			? mb_parse_str($this->getQueryString(), $array)
-			: parse_str($this->getQueryString(), $array);
+			? mb_parse_str($sQueryString, $array)
+			: parse_str($sQueryString, $array);
 
 		$this->aGet = $this->stripSlashesIfNeeded($array);
 	}
@@ -725,7 +727,7 @@ class Request
 	 * @param mixed $mDefault Default value.
 	 * @return mixed
 	 */
-	public function inputs(string|int $mKey = null, mixed $mDefault = null): mixed
+	public function inputs(string|int $mKey = '', mixed $mDefault = null): mixed
 	{
 		if (is_null($this->aGet))
 			$this->initGet();
@@ -733,7 +735,7 @@ class Request
 		if (is_null($this->aPost))
 			$this->initPost();
 
-		if (!is_null($mKey))
+		if ($mKey !== '')
 		{
 			$value = arrayValue($this->aGet, $mKey);
 
@@ -753,7 +755,7 @@ class Request
 	 * @param mixed $mDefault Default value.
 	 * @return mixed
 	 */
-	public function get(string|int $mKey = null, mixed $mDefault = null): mixed
+	public function get(string|int $mKey = '', mixed $mDefault = null): mixed
 	{
 		if (is_null($this->aGet))
 			$this->initGet();
@@ -761,7 +763,7 @@ class Request
 		if ($this->isGetOverPost())
 			return $this->inputs($mKey, $mDefault);
 
-		if (!is_null($mKey))
+		if ($mKey !== '')
 			return arrayValue($this->aGet, $mKey, $mDefault);
 
 		return $this->aGet;
@@ -774,12 +776,12 @@ class Request
 	 * @param mixed $mDefault Default value.
 	 * @return mixed
 	 */
-	public function post(string|int $mKey = null, mixed $mDefault = null): mixed
+	public function post(string|int $mKey = '', mixed $mDefault = null): mixed
 	{
 		if (is_null($this->aPost))
 			$this->initPost();
 
-		if (!is_null($mKey))
+		if ($mKey !== '')
 			return arrayValue($this->aPost, $mKey, $mDefault);
 
 		return $this->aPost;
