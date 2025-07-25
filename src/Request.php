@@ -209,6 +209,32 @@ class Request
 		if (isArrayKey($this->aServer, $sKey))
 			return arrayValue($this->aServer, $sKey, $sDefault);
 
+		switch ($sKey)
+		{
+			case 'REQUEST_URI':
+			case 'QUERY_STRING':
+				$value = $this->sanitizeQuery(server($sKey, ''));
+				break;
+
+			default:
+				$value = $this->sanitizeServerVar($sKey, $iFilter, $mOptions);
+		}
+
+		$this->aServer[$sKey] = ($value !== false ? $value : $sDefault);
+
+		return $this->aServer[$sKey];
+	}
+	
+	/**
+	 * Sanitize $_SERVER var.
+	 *
+	 * @param string $sKey Server key.
+	 * @param integer $iFilter Filter to apply, among `FILTER_*` PHP constants.
+	 * @param mixed $mOptions Filter's options (see PHP doc).
+	 * @return string|false
+	 */
+	private function sanitizeServerVar(string $sKey, int $iFilter, mixed $mOptions = null): mixed
+	{
 		if ($iFilter == FILTER_SANITIZE_FULL_SPECIAL_CHARS && is_null($mOptions))
 			$mOptions = ['flags' => array(FILTER_FLAG_NO_ENCODE_QUOTES)];
 
@@ -222,9 +248,37 @@ class Request
 				: false
 			);
 
-		$this->aServer[$sKey] = ($value !== false ? $value : $sDefault);
+		return $value;
+	}
 
-		return $this->aServer[$sKey];
+	/**
+	 * Sanitize query string or request URI ("&" separator).
+	 * 
+	 * @param string Value to sanitize.
+	 * @return stirng|false
+	 */
+	private function sanitizeQuery(string $sVar): mixed
+	{
+		if (empty($sVar))
+			return false;
+
+		$aUriParts = explode('?', $sVar, 2);
+		$sUriPath = (count($aUriParts) > 1 ? $aUriParts[0] : '');
+		$sQueryString = (isset($aUriParts[1]) ? $aUriParts[1] : $aUriParts[0]);
+
+		$sUriPath = htmlspecialchars($sUriPath, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+
+		parse_str($sQueryString, $aQueryParams);
+
+		foreach ($aQueryParams as &$sParamValue)
+			$sParamValue = htmlspecialchars($sParamValue, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+
+		$sQueryString = http_build_query($aQueryParams);
+
+		return (count($aUriParts) > 1 
+			? $sUriPath . (!empty($sQueryString) ? '?'. $sQueryString : '')
+			: $sQueryString
+		);
 	}
 
 	/**
@@ -678,11 +732,9 @@ class Request
 	{
 		$array = [];
 
-		$sQueryString = str_ireplace('&amp;', '&', urldecode($this->getQueryString()));
-
 		function_exists('mb_parse_str')
-			? mb_parse_str($sQueryString, $array)
-			: parse_str($sQueryString, $array);
+			? mb_parse_str($this->getQueryString(), $array)
+			: parse_str($this->getQueryString(), $array);
 
 		$this->aGet = $this->stripSlashesIfNeeded($array);
 	}
