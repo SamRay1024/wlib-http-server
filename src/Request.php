@@ -212,8 +212,11 @@ class Request
 		switch ($sKey)
 		{
 			case 'REQUEST_URI':
+				$value = $this->sanitizeRequestUri(server($sKey, ''));
+				break;
+
 			case 'QUERY_STRING':
-				$value = $this->sanitizeQuery(server($sKey, ''));
+				$value = $this->sanitizeQueryString(server($sKey, ''));
 				break;
 
 			default:
@@ -252,33 +255,46 @@ class Request
 	}
 
 	/**
-	 * Sanitize query string or request URI ("&" separator).
+	 * Sanitize request URI.
 	 * 
-	 * @param string Value to sanitize.
-	 * @return stirng|false
+	 * @param string Request URI value.
+	 * @return string|false
 	 */
-	private function sanitizeQuery(string $sVar): mixed
+	private function sanitizeRequestUri(string $sVar): mixed
 	{
+		$sVar = trim($sVar, '/');
+
 		if (empty($sVar))
 			return false;
 
 		$aUriParts = explode('?', $sVar, 2);
-		$sUriPath = (count($aUriParts) > 1 ? $aUriParts[0] : '');
-		$sQueryString = (isset($aUriParts[1]) ? $aUriParts[1] : $aUriParts[0]);
+		$sUriPath = $aUriParts[0];
+		$sQueryString = (isset($aUriParts[1]) ? $aUriParts[1] : '');
 
 		$sUriPath = htmlspecialchars($sUriPath, ENT_QUOTES | ENT_HTML5, 'UTF-8');
 
-		parse_str($sQueryString, $aQueryParams);
+		$sQueryString = $this->sanitizeQueryString($sQueryString);
 
+		return trim($sUriPath, '/') . (!empty($sQueryString) ? '?'. $sQueryString : '');
+	}
+	
+	/**
+	 * Sanitize query string.
+	 *
+	 * @param string $sQuery Query string value.
+	 * @return string
+	 */
+	private function sanitizeQueryString(string $sQuery): string
+	{
+		if (empty($sQuery))
+			return '';
+
+		parse_str($sQuery, $aQueryParams);
+		
 		foreach ($aQueryParams as &$sParamValue)
 			$sParamValue = htmlspecialchars($sParamValue, ENT_QUOTES | ENT_HTML5, 'UTF-8');
 
-		$sQueryString = http_build_query($aQueryParams);
-
-		return (count($aUriParts) > 1 
-			? $sUriPath . (!empty($sQueryString) ? '?'. $sQueryString : '')
-			: $sQueryString
-		);
+		return http_build_query($aQueryParams);
 	}
 
 	/**
