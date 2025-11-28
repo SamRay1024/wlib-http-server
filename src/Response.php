@@ -441,7 +441,7 @@ class Response
 		$sHeaders = '';
 
 		foreach ($this->aHeaders as $sName => $sValue)
-			$sHeaders .= $sName .': '. $sValue ."\n";
+			$sHeaders .= ($sHeaders ? "\n" : '') . $sName .': '. $sValue;
 
 		return $sHeaders;
 	}
